@@ -6,7 +6,7 @@ Pod::Spec.new do |s|
   s.license      = { :type => 'MIT', :file => 'LICENSE' }
   s.author       = 'mruby developers'
 
-  s.source       = { :git => 'https://github.com/jzzocc/mruby-iOS.git', :tag => '"#{s.version}"' }
+  s.source       = { :git => 'https://github.com/jzzocc/mruby-iOS.git', :tag => "#{s.version}" }
   s.platform     = :ios
   
   framework_path = 'MRuby.framework'
