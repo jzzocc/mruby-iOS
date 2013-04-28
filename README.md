@@ -4,12 +4,12 @@ This is a pre-built version of [ios-ruby-embedded](https://github.com/carsonmcdo
 
 ## Installation
 
-I haven't submitted this to the CocoaPods master spec repo because mruby is still under rapid development and constantly changing. If you want to include it in your project add this to your podfile:
+I have not submitted this to the CocoaPods master spec repo because mruby is still under rapid development and constantly changing. If you would like to include it in your project then add this to your podfile:
 
-```
+``` ruby
 pod 'mruby-iOS', :git => 'https://github.com/jzzocc/mruby-iOS.git'
 ```
 
 ## License
 
-MIT to match the mruby license. See the LICENSE file for full license.
+mruby-iOS is available under the MIT license. See the LICENSE file for more info.
