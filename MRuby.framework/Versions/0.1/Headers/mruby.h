@@ -61,15 +61,16 @@ typedef struct {
   struct REnv *env;
 } mrb_callinfo;
 
-enum mrb_fiber_state {
-  MRB_FIBER_CREATED = 0,
-  MRB_FIBER_RUNNING,
-  MRB_FIBER_RESUMED,
-  MRB_FIBER_TERMINATED,
+enum gc_state {
+  GC_STATE_NONE = 0,
+  GC_STATE_MARK,
+  GC_STATE_SWEEP
 };
 
-struct mrb_context {
-  struct mrb_context *prev;
+typedef struct mrb_state {
+  void *jmp;
+
+  mrb_allocf allocf;
 
   mrb_value *stack;
   mrb_value *stbase, *stend;
@@ -82,26 +83,9 @@ struct mrb_context {
   struct RProc **ensure;
   int esize;
 
-  uint8_t status;
-  struct RFiber *fib;
-};
-
-enum gc_state {
-  GC_STATE_NONE = 0,
-  GC_STATE_MARK,
-  GC_STATE_SWEEP
-};
-
-typedef struct mrb_state {
-  void *jmp;
-
-  mrb_allocf allocf;
-
-  struct mrb_context *c;
-  struct mrb_context *root_c;
-
   struct RObject *exc;
   struct iv_tbl *globals;
+
   struct mrb_irep **irep;
   size_t irep_len, irep_capa;
 
@@ -156,6 +140,7 @@ typedef struct mrb_state {
   struct RClass *eStandardError_class;
 
   void *ud; /* auxiliary data */
+
 } mrb_state;
 
 typedef mrb_value (*mrb_func_t)(mrb_state *mrb, mrb_value);
@@ -273,11 +258,11 @@ int mrb_gc_arena_save(mrb_state*);
 void mrb_gc_arena_restore(mrb_state*,int);
 void mrb_gc_mark(mrb_state*,struct RBasic*);
 #define mrb_gc_mark_value(mrb,val) do {\
-  if (mrb_type(val) >= MRB_TT_HAS_BASIC) mrb_gc_mark((mrb), mrb_basic_ptr(val));\
+  if (mrb_type(val) >= MRB_TT_OBJECT) mrb_gc_mark((mrb), mrb_basic_ptr(val));\
 } while (0)
 void mrb_field_write_barrier(mrb_state *, struct RBasic*, struct RBasic*);
 #define mrb_field_write_barrier_value(mrb, obj, val) do{\
-  if ((val.tt >= MRB_TT_HAS_BASIC)) mrb_field_write_barrier((mrb), (obj), mrb_basic_ptr(val));\
+  if ((val.tt >= MRB_TT_OBJECT)) mrb_field_write_barrier((mrb), (obj), mrb_basic_ptr(val));\
 } while (0)
 void mrb_write_barrier(mrb_state *, struct RBasic*);
 
@@ -317,7 +302,6 @@ void mrb_name_error(mrb_state *mrb, mrb_sym id, const char *fmt, ...);
 void mrb_warn(mrb_state *mrb, const char *fmt, ...);
 void mrb_bug(mrb_state *mrb, const char *fmt, ...);
 void mrb_print_backtrace(mrb_state *mrb);
-void mrb_print_error(mrb_state *mrb);
 
 /* macros to get typical exception objects
    note:
