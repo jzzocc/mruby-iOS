@@ -11,7 +11,6 @@ Pod::Spec.new do |s|
   
   framework_path = 'MRuby.framework'
 
-  #s.source_files would ideally be "#{framework_path}/Headers/*.h" but there seems to be a problem with symbolic liks when fetched via git
   s.source_files   = "#{framework_path}/Versions/0.1/Headers/*.h"
   s.preserve_paths = framework_path
   s.frameworks     = 'MRuby'
