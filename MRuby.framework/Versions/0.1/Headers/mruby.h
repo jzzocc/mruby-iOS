@@ -32,8 +32,10 @@
 extern "C" {
 #endif
 
-#include "mrbconf.h"
+#include <stdint.h>
+#include <stddef.h>
 
+#include "mrbconf.h"
 #include "mruby/value.h"
 
 typedef uint32_t mrb_code;
@@ -61,6 +63,31 @@ typedef struct {
   struct REnv *env;
 } mrb_callinfo;
 
+enum mrb_fiber_state {
+  MRB_FIBER_CREATED = 0,
+  MRB_FIBER_RUNNING,
+  MRB_FIBER_RESUMED,
+  MRB_FIBER_TERMINATED,
+};
+
+struct mrb_context {
+  struct mrb_context *prev;
+
+  mrb_value *stack;                       /* stack of virtual machine */
+  mrb_value *stbase, *stend;
+
+  mrb_callinfo *ci;
+  mrb_callinfo *cibase, *ciend;
+
+  mrb_code **rescue;                      /* exception handler stack */
+  int rsize;
+  struct RProc **ensure;                  /* ensure handler stack */
+  int esize;
+
+  uint8_t status;
+  struct RFiber *fib;
+};
+
 enum gc_state {
   GC_STATE_NONE = 0,
   GC_STATE_MARK,
@@ -70,28 +97,19 @@ enum gc_state {
 typedef struct mrb_state {
   void *jmp;
 
-  mrb_allocf allocf;
+  mrb_allocf allocf;                      /* memory allocation function */
 
-  mrb_value *stack;
-  mrb_value *stbase, *stend;
+  struct mrb_context *c;
+  struct mrb_context *root_c;
 
-  mrb_callinfo *ci;
-  mrb_callinfo *cibase, *ciend;
-
-  mrb_code **rescue;
-  int rsize;
-  struct RProc **ensure;
-  int esize;
-
-  struct RObject *exc;
-  struct iv_tbl *globals;
-
-  struct mrb_irep **irep;
+  struct RObject *exc;                    /* exception */
+  struct iv_tbl *globals;                 /* global variable table */
+  struct mrb_irep **irep;                 /* program data array */
   size_t irep_len, irep_capa;
 
   mrb_sym init_sym;
   struct RObject *top_self;
-  struct RClass *object_class;
+  struct RClass *object_class;            /* Object class */
   struct RClass *class_class;
   struct RClass *module_class;
   struct RClass *proc_class;
@@ -107,11 +125,11 @@ typedef struct mrb_state {
   struct RClass *symbol_class;
   struct RClass *kernel_module;
 
-  struct heap_page *heaps;
+  struct heap_page *heaps;                /* heaps for GC */
   struct heap_page *sweeps;
   struct heap_page *free_heaps;
   size_t live; /* count of live objects */
-  struct RBasic *arena[MRB_ARENA_SIZE];
+  struct RBasic *arena[MRB_ARENA_SIZE];   /* GC protection array */
   int arena_idx;
 
   enum gc_state gc_state; /* state of gc */
@@ -140,7 +158,6 @@ typedef struct mrb_state {
   struct RClass *eStandardError_class;
 
   void *ud; /* auxiliary data */
-
 } mrb_state;
 
 typedef mrb_value (*mrb_func_t)(mrb_state *mrb, mrb_value);
@@ -159,12 +176,13 @@ void mrb_undef_class_method(mrb_state*, struct RClass*, const char*);
 mrb_value mrb_instance_new(mrb_state *mrb, mrb_value cv);
 struct RClass * mrb_class_new(mrb_state *mrb, struct RClass *super);
 struct RClass * mrb_module_new(mrb_state *mrb);
-int mrb_class_defined(mrb_state *mrb, const char *name);
+mrb_bool mrb_class_defined(mrb_state *mrb, const char *name);
 struct RClass * mrb_class_get(mrb_state *mrb, const char *name);
+struct RClass * mrb_class_get_under(mrb_state *mrb, struct RClass *outer, const char *name);
 
 mrb_value mrb_obj_dup(mrb_state *mrb, mrb_value obj);
 mrb_value mrb_check_to_integer(mrb_state *mrb, mrb_value val, const char *method);
-int mrb_obj_respond_to(struct RClass* c, mrb_sym mid);
+mrb_bool mrb_obj_respond_to(struct RClass* c, mrb_sym mid);
 struct RClass * mrb_define_class_under(mrb_state *mrb, struct RClass *outer, const char *name, struct RClass *super);
 struct RClass * mrb_define_module_under(mrb_state *mrb, struct RClass *outer, const char *name);
 
@@ -222,9 +240,11 @@ mrb_sym mrb_intern(mrb_state *mrb,const char *cstr)
   return mrb_intern_cstr(mrb, cstr);
 }
 
-void *mrb_malloc(mrb_state*, size_t);
-void *mrb_calloc(mrb_state*, size_t, size_t);
-void *mrb_realloc(mrb_state*, void*, size_t);
+void *mrb_malloc(mrb_state*, size_t);         /* raise RuntimeError if no mem */
+void *mrb_calloc(mrb_state*, size_t, size_t); /* ditto */
+void *mrb_realloc(mrb_state*, void*, size_t); /* ditto */
+void *mrb_realloc_simple(mrb_state*, void*, size_t); /* return NULL if no memory available */
+void *mrb_malloc_simple(mrb_state*, size_t);  /* return NULL if no memory available */
 struct RBasic *mrb_obj_alloc(mrb_state*, enum mrb_vtype, struct RClass*);
 void mrb_free(mrb_state*, void*);
 
@@ -244,13 +264,13 @@ void mrb_p(mrb_state*, mrb_value);
 mrb_int mrb_obj_id(mrb_value obj);
 mrb_sym mrb_obj_to_sym(mrb_state *mrb, mrb_value name);
 
-int mrb_obj_eq(mrb_state*, mrb_value, mrb_value);
-int mrb_obj_equal(mrb_state*, mrb_value, mrb_value);
-int mrb_equal(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
+mrb_bool mrb_obj_eq(mrb_state*, mrb_value, mrb_value);
+mrb_bool mrb_obj_equal(mrb_state*, mrb_value, mrb_value);
+mrb_bool mrb_equal(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
 mrb_value mrb_Integer(mrb_state *mrb, mrb_value val);
 mrb_value mrb_Float(mrb_state *mrb, mrb_value val);
 mrb_value mrb_inspect(mrb_state *mrb, mrb_value obj);
-int mrb_eql(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
+mrb_bool mrb_eql(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
 
 void mrb_garbage_collect(mrb_state*);
 void mrb_incremental_gc(mrb_state *);
@@ -258,21 +278,21 @@ int mrb_gc_arena_save(mrb_state*);
 void mrb_gc_arena_restore(mrb_state*,int);
 void mrb_gc_mark(mrb_state*,struct RBasic*);
 #define mrb_gc_mark_value(mrb,val) do {\
-  if (mrb_type(val) >= MRB_TT_OBJECT) mrb_gc_mark((mrb), mrb_basic_ptr(val));\
+  if (mrb_type(val) >= MRB_TT_HAS_BASIC) mrb_gc_mark((mrb), mrb_basic_ptr(val));\
 } while (0)
 void mrb_field_write_barrier(mrb_state *, struct RBasic*, struct RBasic*);
 #define mrb_field_write_barrier_value(mrb, obj, val) do{\
-  if ((val.tt >= MRB_TT_OBJECT)) mrb_field_write_barrier((mrb), (obj), mrb_basic_ptr(val));\
+  if ((val.tt >= MRB_TT_HAS_BASIC)) mrb_field_write_barrier((mrb), (obj), mrb_basic_ptr(val));\
 } while (0)
 void mrb_write_barrier(mrb_state *, struct RBasic*);
 
-mrb_value mrb_check_convert_type(mrb_state *mrb, mrb_value val, mrb_int type, const char *tname, const char *method);
+mrb_value mrb_check_convert_type(mrb_state *mrb, mrb_value val, enum mrb_vtype type, const char *tname, const char *method);
 mrb_value mrb_any_to_s(mrb_state *mrb, mrb_value obj);
 const char * mrb_obj_classname(mrb_state *mrb, mrb_value obj);
 struct RClass* mrb_obj_class(mrb_state *mrb, mrb_value obj);
 mrb_value mrb_class_path(mrb_state *mrb, struct RClass *c);
-mrb_value mrb_convert_type(mrb_state *mrb, mrb_value val, mrb_int type, const char *tname, const char *method);
-int mrb_obj_is_kind_of(mrb_state *mrb, mrb_value obj, struct RClass *c);
+mrb_value mrb_convert_type(mrb_state *mrb, mrb_value val, enum mrb_vtype type, const char *tname, const char *method);
+mrb_bool mrb_obj_is_kind_of(mrb_state *mrb, mrb_value obj, struct RClass *c);
 mrb_value mrb_obj_inspect(mrb_state *mrb, mrb_value self);
 mrb_value mrb_obj_clone(mrb_state *mrb, mrb_value self);
 
@@ -302,6 +322,7 @@ void mrb_name_error(mrb_state *mrb, mrb_sym id, const char *fmt, ...);
 void mrb_warn(mrb_state *mrb, const char *fmt, ...);
 void mrb_bug(mrb_state *mrb, const char *fmt, ...);
 void mrb_print_backtrace(mrb_state *mrb);
+void mrb_print_error(mrb_state *mrb);
 
 /* macros to get typical exception objects
    note:
@@ -348,8 +369,8 @@ void mrb_define_global_const(mrb_state *mrb, const char *name, mrb_value val);
 mrb_value mrb_block_proc(void);
 mrb_value mrb_attr_get(mrb_state *mrb, mrb_value obj, mrb_sym id);
 
-int mrb_respond_to(mrb_state *mrb, mrb_value obj, mrb_sym mid);
-int mrb_obj_is_instance_of(mrb_state *mrb, mrb_value obj, struct RClass* c);
+mrb_bool mrb_respond_to(mrb_state *mrb, mrb_value obj, mrb_sym mid);
+mrb_bool mrb_obj_is_instance_of(mrb_state *mrb, mrb_value obj, struct RClass* c);
 
 /* memory pool implementation */
 typedef struct mrb_pool mrb_pool;
@@ -357,7 +378,7 @@ struct mrb_pool* mrb_pool_open(mrb_state*);
 void mrb_pool_close(struct mrb_pool*);
 void* mrb_pool_alloc(struct mrb_pool*, size_t);
 void* mrb_pool_realloc(struct mrb_pool*, void*, size_t oldlen, size_t newlen);
-int mrb_pool_can_realloc(struct mrb_pool*, void*, size_t);
+mrb_bool mrb_pool_can_realloc(struct mrb_pool*, void*, size_t);
 void* mrb_alloca(mrb_state *mrb, size_t);
 
 #if defined(__cplusplus)
