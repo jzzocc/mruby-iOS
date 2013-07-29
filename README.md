@@ -14,7 +14,7 @@ I highly suggest using a [pessimistic version constraint](http://docs.rubygems.o
 
 ## Usage
 
-The repo this is forked from has [a great overview](https://github.com/carsonmcdonald/ios-ruby-embedded#example-use). You can also check out [mirb-iOS](https://github.com/jzzocc/mirb-iOS) for an atypical usage.
+The repo this is forked from has [a great overview](https://github.com/carsonmcdonald/ios-ruby-embedded#example-use) and its author, Carson McDonald, also has [an excellent example project](https://github.com/carsonmcdonald/MRubyiOSExample). You can also check out [mirb-iOS](https://github.com/jzzocc/mirb-iOS) for an atypical usage.
 
 ## License
 
