@@ -41,12 +41,13 @@ extern "C" {
 typedef uint32_t mrb_code;
 typedef uint32_t mrb_aspec;
 
+struct mrb_irep;
 struct mrb_state;
 
 typedef void* (*mrb_allocf) (struct mrb_state *mrb, void*, size_t, void *ud);
 
-#ifndef MRB_ARENA_SIZE
-#define MRB_ARENA_SIZE 100
+#ifndef MRB_GC_ARENA_SIZE
+#define MRB_GC_ARENA_SIZE 100
 #endif
 
 typedef struct {
@@ -55,7 +56,8 @@ typedef struct {
   int stackidx;
   int nregs;
   int argc;
-  mrb_code *pc;
+  mrb_code *pc;                 /* return address */
+  mrb_code *err;                /* error position */
   int acc;
   struct RClass *target_class;
   int ridx;
@@ -84,7 +86,7 @@ struct mrb_context {
   struct RProc **ensure;                  /* ensure handler stack */
   int esize;
 
-  uint8_t status;
+  enum mrb_fiber_state status;
   struct RFiber *fib;
 };
 
@@ -104,10 +106,7 @@ typedef struct mrb_state {
 
   struct RObject *exc;                    /* exception */
   struct iv_tbl *globals;                 /* global variable table */
-  struct mrb_irep **irep;                 /* program data array */
-  size_t irep_len, irep_capa;
 
-  mrb_sym init_sym;
   struct RObject *top_self;
   struct RClass *object_class;            /* Object class */
   struct RClass *class_class;
@@ -129,13 +128,18 @@ typedef struct mrb_state {
   struct heap_page *sweeps;
   struct heap_page *free_heaps;
   size_t live; /* count of live objects */
-  struct RBasic *arena[MRB_ARENA_SIZE];   /* GC protection array */
+#ifdef MRB_GC_FIXED_ARENA
+  struct RBasic *arena[MRB_GC_ARENA_SIZE]; /* GC protection array */
+#else
+  struct RBasic **arena;                   /* GC protection array */
+  int arena_capa;
+#endif
   int arena_idx;
 
   enum gc_state gc_state; /* state of gc */
   int current_white_part; /* make white object by white_part */
-  struct RBasic *gray_list; /* list of gray objects */
-  struct RBasic *variable_gray_list; /* list of objects to be traversed atomically */
+  struct RBasic *gray_list; /* list of gray objects to be traversed incrementally */
+  struct RBasic *atomic_gray_list; /* list of objects to be traversed atomically */
   size_t gc_live_after_mark;
   size_t gc_threshold;
   int gc_interval_ratio;
@@ -152,6 +156,7 @@ typedef struct mrb_state {
 
 #ifdef ENABLE_DEBUG
   void (*code_fetch_hook)(struct mrb_state* mrb, struct mrb_irep *irep, mrb_code *pc, mrb_value *regs);
+  void (*debug_op_hook)(struct mrb_state* mrb, struct mrb_irep *irep, mrb_code *pc, mrb_value *regs);
 #endif
 
   struct RClass *eException_class;
@@ -173,6 +178,8 @@ void mrb_define_module_function(mrb_state*, struct RClass*, const char*, mrb_fun
 void mrb_define_const(mrb_state*, struct RClass*, const char *name, mrb_value);
 void mrb_undef_method(mrb_state*, struct RClass*, const char*);
 void mrb_undef_class_method(mrb_state*, struct RClass*, const char*);
+mrb_value mrb_obj_new(mrb_state *mrb, struct RClass *c, int argc, mrb_value *argv);
+#define mrb_class_new_instance(mrb,argc,argv,c) mrb_obj_new(mrb,c,argc,argv)
 mrb_value mrb_instance_new(mrb_state *mrb, mrb_value cv);
 struct RClass * mrb_class_new(mrb_state *mrb, struct RClass *super);
 struct RClass * mrb_module_new(mrb_state *mrb);
@@ -182,7 +189,7 @@ struct RClass * mrb_class_get_under(mrb_state *mrb, struct RClass *outer, const 
 
 mrb_value mrb_obj_dup(mrb_state *mrb, mrb_value obj);
 mrb_value mrb_check_to_integer(mrb_state *mrb, mrb_value val, const char *method);
-mrb_bool mrb_obj_respond_to(struct RClass* c, mrb_sym mid);
+mrb_bool mrb_obj_respond_to(mrb_state *mrb, struct RClass* c, mrb_sym mid);
 struct RClass * mrb_define_class_under(mrb_state *mrb, struct RClass *outer, const char *name, struct RClass *super);
 struct RClass * mrb_define_module_under(mrb_state *mrb, struct RClass *outer, const char *name);
 
@@ -223,7 +230,9 @@ mrb_value mrb_funcall(mrb_state*, mrb_value, const char*, int,...);
 mrb_value mrb_funcall_argv(mrb_state*, mrb_value, mrb_sym, int, mrb_value*);
 mrb_value mrb_funcall_with_block(mrb_state*, mrb_value, mrb_sym, int, mrb_value*, mrb_value);
 mrb_sym mrb_intern_cstr(mrb_state*,const char*);
-mrb_sym mrb_intern2(mrb_state*,const char*,size_t);
+mrb_sym mrb_intern(mrb_state*,const char*,size_t);
+mrb_sym mrb_intern_static(mrb_state*,const char*,size_t);
+#define mrb_intern_lit(mrb, lit) mrb_intern_static(mrb, (lit), sizeof(lit) - 1)
 mrb_sym mrb_intern_str(mrb_state*,mrb_value);
 mrb_value mrb_check_intern_cstr(mrb_state*,const char*);
 mrb_value mrb_check_intern(mrb_state*,const char*,size_t);
@@ -232,13 +241,6 @@ const char *mrb_sym2name(mrb_state*,mrb_sym);
 const char *mrb_sym2name_len(mrb_state*,mrb_sym,size_t*);
 mrb_value mrb_sym2str(mrb_state*,mrb_sym);
 mrb_value mrb_str_format(mrb_state *, int, const mrb_value *, mrb_value);
-
-/* For backward compatibility. */
-static inline
-mrb_sym mrb_intern(mrb_state *mrb,const char *cstr)
-{
-  return mrb_intern_cstr(mrb, cstr);
-}
 
 void *mrb_malloc(mrb_state*, size_t);         /* raise RuntimeError if no mem */
 void *mrb_calloc(mrb_state*, size_t, size_t); /* ditto */
@@ -254,11 +256,11 @@ mrb_value mrb_str_new_static(mrb_state *mrb, const char *p, size_t len);
 
 mrb_state* mrb_open(void);
 mrb_state* mrb_open_allocf(mrb_allocf, void *ud);
-void mrb_irep_free(mrb_state*, struct mrb_irep*);
 void mrb_close(mrb_state*);
 
 mrb_value mrb_top_self(mrb_state *);
 mrb_value mrb_run(mrb_state*, struct RProc*, mrb_value);
+mrb_value mrb_context_run(mrb_state*, struct RProc*, mrb_value, unsigned int);
 
 void mrb_p(mrb_state*, mrb_value);
 mrb_int mrb_obj_id(mrb_value obj);
@@ -273,6 +275,7 @@ mrb_value mrb_inspect(mrb_state *mrb, mrb_value obj);
 mrb_bool mrb_eql(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
 
 void mrb_garbage_collect(mrb_state*);
+void mrb_full_gc(mrb_state*);
 void mrb_incremental_gc(mrb_state *);
 int mrb_gc_arena_save(mrb_state*);
 void mrb_gc_arena_restore(mrb_state*,int);
@@ -300,7 +303,6 @@ mrb_value mrb_obj_clone(mrb_state *mrb, mrb_value self);
 #ifndef ISPRINT
 //#define ISASCII(c) isascii((int)(unsigned char)(c))
 #define ISASCII(c) 1
-#undef ISPRINT
 #define ISPRINT(c) (ISASCII(c) && isprint((int)(unsigned char)(c)))
 #define ISSPACE(c) (ISASCII(c) && isspace((int)(unsigned char)(c)))
 #define ISUPPER(c) (ISASCII(c) && isupper((int)(unsigned char)(c)))
@@ -348,8 +350,6 @@ void mrb_print_error(mrb_state *mrb);
 
 mrb_value mrb_yield(mrb_state *mrb, mrb_value b, mrb_value arg);
 mrb_value mrb_yield_argv(mrb_state *mrb, mrb_value b, int argc, mrb_value *argv);
-mrb_value mrb_class_new_instance(mrb_state *mrb, int, mrb_value*, struct RClass *);
-mrb_value mrb_class_new_instance_m(mrb_state *mrb, mrb_value klass);
 
 void mrb_gc_protect(mrb_state *mrb, mrb_value obj);
 mrb_value mrb_to_int(mrb_state *mrb, mrb_value val);
@@ -380,6 +380,13 @@ void* mrb_pool_alloc(struct mrb_pool*, size_t);
 void* mrb_pool_realloc(struct mrb_pool*, void*, size_t oldlen, size_t newlen);
 mrb_bool mrb_pool_can_realloc(struct mrb_pool*, void*, size_t);
 void* mrb_alloca(mrb_state *mrb, size_t);
+
+#ifdef MRB_DEBUG
+#include <assert.h>
+#define mrb_assert(p) assert(p)
+#else
+#define mrb_assert(p) ((void)0)
+#endif
 
 #if defined(__cplusplus)
 }  /* extern "C" { */

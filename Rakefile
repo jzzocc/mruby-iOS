@@ -1,6 +1,8 @@
 XCODEROOT = %x[xcode-select -print-path].strip
-SIMSDKPATH = "#{XCODEROOT}/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator6.1.sdk/"
-IOSSDKPATH = "#{XCODEROOT}/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS6.1.sdk/"
+#SIMSDKPATH = "#{XCODEROOT}/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator6.1.sdk/"
+#IOSSDKPATH = "#{XCODEROOT}/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS6.1.sdk/"
+SIMSDKPATH = "#{XCODEROOT}/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator7.0.sdk/"
+IOSSDKPATH = "#{XCODEROOT}/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.0.sdk/"
 
 task :verify_sysroot => [SIMSDKPATH, IOSSDKPATH]
 
@@ -10,7 +12,7 @@ file "ios_build_config.rb" do
 
     config_file.puts <<__EOF__
 MRuby::Build.new do |conf|
-  toolchain :gcc
+  toolchain :clang
 
   conf.gembox 'default'
 end
@@ -25,12 +27,12 @@ MRuby::CrossBuild.new('ios-simulator') do |conf|
 
   conf.cc do |cc|
     cc.command = 'xcrun'
-    cc.flags = %W(-sdk iphoneos llvm-gcc-4.2 -arch i386 -isysroot \#{SIM_SYSROOT} -g -O3 -Wall -Werror-implicit-function-declaration)
+    cc.flags = %W(-sdk iphoneos clang -miphoneos-version-min=5.0 -arch i386 -isysroot \#{SIM_SYSROOT} -g -O3 -Wall -Werror-implicit-function-declaration)
   end
 
   conf.linker do |linker|
     linker.command = 'xcrun'
-    linker.flags = %W(-sdk iphoneos llvm-gcc-4.2 -arch i386 -isysroot \#{SIM_SYSROOT})
+    linker.flags = %W(-sdk iphoneos clang -miphoneos-version-min=5.0 -arch i386 -isysroot \#{SIM_SYSROOT})
   end
 end
 
@@ -41,12 +43,12 @@ MRuby::CrossBuild.new('ios-armv7') do |conf|
 
   conf.cc do |cc|
     cc.command = 'xcrun'
-    cc.flags = %W(-sdk iphoneos llvm-gcc-4.2 -arch armv7 -isysroot \#{DEVICE_SYSROOT} -g -O3 -Wall -Werror-implicit-function-declaration)
+    cc.flags = %W(-sdk iphoneos clang -arch armv7 -isysroot \#{DEVICE_SYSROOT} -g -O3 -Wall -Werror-implicit-function-declaration)
   end
 
   conf.linker do |linker|
     linker.command = 'xcrun'
-    linker.flags = %W(-sdk iphoneos llvm-gcc-4.2 -arch armv7 -isysroot \#{DEVICE_SYSROOT})
+    linker.flags = %W(-sdk iphoneos clang -arch armv7 -isysroot \#{DEVICE_SYSROOT})
   end
 end
 
@@ -56,12 +58,27 @@ MRuby::CrossBuild.new('ios-armv7s') do |conf|
   conf.gembox 'default'
   conf.cc do |cc|
     cc.command = 'xcrun'
-    cc.flags = %W(-sdk iphoneos llvm-gcc-4.2 -arch armv7s -isysroot \#{DEVICE_SYSROOT} -g -O3 -Wall -Werror-implicit-function-declaration)
+    cc.flags = %W(-sdk iphoneos clang -arch armv7s -isysroot \#{DEVICE_SYSROOT} -g -O3 -Wall -Werror-implicit-function-declaration)
   end
 
   conf.linker do |linker|
     linker.command = 'xcrun'
-    linker.flags = %W(-sdk iphoneos llvm-gcc-4.2 -arch armv7s -isysroot \#{DEVICE_SYSROOT})
+    linker.flags = %W(-sdk iphoneos clang -arch armv7s -isysroot \#{DEVICE_SYSROOT})
+  end
+end
+
+MRuby::CrossBuild.new('ios-arm64') do |conf|
+  conf.bins = []
+
+  conf.gembox 'default'
+  conf.cc do |cc|
+    cc.command = 'xcrun'
+    cc.flags = %W(-sdk iphoneos clang -arch arm64 -isysroot \#{DEVICE_SYSROOT} -g -O3 -Wall -Werror-implicit-function-declaration)
+  end
+
+  conf.linker do |linker|
+    linker.command = 'xcrun'
+    linker.flags = %W(-sdk iphoneos clang -arch arm64 -isysroot \#{DEVICE_SYSROOT})
   end
 end
 __EOF__
@@ -96,7 +113,7 @@ directory "MRuby.framework/Versions/0.1/Resources"
 directory "MRuby.framework/Versions/0.1/Headers"
 
 file "MRuby.framework/Versions/Current/MRuby" => [:build_mruby, "MRuby.framework/Versions/0.1/"] do
-  sh "#{IOSSDKPATH}/../../usr/bin/lipo -arch i386 mruby/build/ios-simulator/lib/libmruby.a -arch armv7 mruby/build/ios-armv7/lib/libmruby.a -arch armv7s mruby/build/ios-armv7s/lib/libmruby.a -create -output MRuby.framework/Versions/Current/MRuby"
+  sh "#{IOSSDKPATH}/../../usr/bin/lipo -arch i386 mruby/build/ios-simulator/lib/libmruby.a -arch arm64 mruby/build/ios-arm64/lib/libmruby.a -arch armv7 mruby/build/ios-armv7/lib/libmruby.a -arch armv7s mruby/build/ios-armv7s/lib/libmruby.a -create -output MRuby.framework/Versions/Current/MRuby"
 end
 
 task :mruby_headers => [:build_mruby, "MRuby.framework/Versions/0.1/Headers"] do
@@ -105,7 +122,9 @@ task :mruby_headers => [:build_mruby, "MRuby.framework/Versions/0.1/Headers"] do
   sh "sed -i '' 's/mruby\\.h/..\\/mruby\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/*"
   sh "sed -i '' 's/mruby\\/khash\\.h/..\\/mruby\\/khash\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/*"
   sh "sed -i '' 's/mruby\\/irep\\.h/..\\/mruby\\/irep\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/proc.h"
+  sh "sed -i '' 's/mruby\\/irep\\.h/..\\/mruby\\/irep\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/dump.h"
   sh "sed -i '' 's/mruby\\/object\\.h/..\\/mruby\\/object\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/value.h"
+  sh "sed -i '' 's/mruby\\/compile\\.h/..\\/mruby\\/compile\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/irep.h"
 end
  
 task :all => [:verify_sysroot, "bin/mirb", "bin/mrbc", "bin/mruby", "MRuby.framework/Versions/Current/MRuby", :mruby_headers]

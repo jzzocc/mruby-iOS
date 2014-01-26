@@ -25,22 +25,26 @@ struct RString {
   char *ptr;
 };
 
-#define mrb_str_ptr(s)    ((struct RString*)((s).value.p))
-#define RSTRING(s)        ((struct RString*)((s).value.p))
+#define mrb_str_ptr(s)    ((struct RString*)(mrb_ptr(s)))
+#define RSTRING(s)        ((struct RString*)(mrb_ptr(s)))
 #define RSTRING_PTR(s)    (RSTRING(s)->ptr)
 #define RSTRING_LEN(s)    (RSTRING(s)->len)
 #define RSTRING_CAPA(s)   (RSTRING(s)->aux.capa)
 #define RSTRING_END(s)    (RSTRING(s)->ptr + RSTRING(s)->len)
+
+#define MRB_STR_SHARED    1
+#define MRB_STR_NOFREE    2
 
 void mrb_gc_free_str(mrb_state*, struct RString*);
 void mrb_str_modify(mrb_state*, struct RString*);
 mrb_value mrb_str_literal(mrb_state*, mrb_value);
 void mrb_str_concat(mrb_state*, mrb_value, mrb_value);
 mrb_value mrb_str_plus(mrb_state*, mrb_value, mrb_value);
-mrb_value mrb_ptr_to_str(mrb_state *, void *);
+mrb_value mrb_ptr_to_str(mrb_state *, void*);
 mrb_value mrb_obj_as_string(mrb_state *mrb, mrb_value obj);
 mrb_value mrb_str_resize(mrb_state *mrb, mrb_value str, mrb_int len);
 mrb_value mrb_str_substr(mrb_state *mrb, mrb_value str, mrb_int beg, mrb_int len);
+mrb_value mrb_string_type(mrb_state *mrb, mrb_value str);
 mrb_value mrb_check_string_type(mrb_state *mrb, mrb_value str);
 mrb_value mrb_str_buf_new(mrb_state *mrb, mrb_int capa);
 mrb_value mrb_str_buf_cat(mrb_state *mrb, mrb_value str, const char *ptr, size_t len);
@@ -64,6 +68,7 @@ mrb_value mrb_str_append(mrb_state *mrb, mrb_value str, mrb_value str2);
 
 int mrb_str_cmp(mrb_state *mrb, mrb_value str1, mrb_value str2);
 char *mrb_str_to_cstr(mrb_state *mrb, mrb_value str);
+mrb_value mrb_str_pool(mrb_state *mrb, mrb_value str);
 
 /* For backward compatibility */
 static inline mrb_value

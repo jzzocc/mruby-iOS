@@ -12,17 +12,16 @@ extern "C" {
 #endif
 
 #include "../mruby.h"
+#include "../mruby/irep.h"
 
 #ifdef ENABLE_STDIO
-int mrb_dump_irep_binary(mrb_state*, size_t, int, FILE*);
-int mrb_dump_irep_cfunc(mrb_state *mrb, size_t n, int, FILE *f, const char *initname);
-int32_t mrb_read_irep_file(mrb_state*, FILE*);
-#endif
-int32_t mrb_read_irep(mrb_state*, const uint8_t*);
-
-#ifdef ENABLE_STDIO
+int mrb_dump_irep_binary(mrb_state*, mrb_irep*, int, FILE*);
+int mrb_dump_irep_cfunc(mrb_state *mrb, mrb_irep*, int, FILE *f, const char *initname);
+mrb_irep *mrb_read_irep_file(mrb_state*, FILE*);
 mrb_value mrb_load_irep_file(mrb_state*,FILE*);
+mrb_value mrb_load_irep_file_cxt(mrb_state*, FILE*, mrbc_context*);
 #endif
+mrb_irep *mrb_read_irep(mrb_state*, const uint8_t*);
 
 /* dump/load error code
  *
@@ -43,7 +42,7 @@ mrb_value mrb_load_irep_file(mrb_state*,FILE*);
 
 /* Rite Binary File header */
 #define RITE_BINARY_IDENTIFIER         "RITE"
-#define RITE_BINARY_FORMAT_VER         "0001"
+#define RITE_BINARY_FORMAT_VER         "0002"
 #define RITE_COMPILER_NAME             "MATZ"
 #define RITE_COMPILER_VERSION          "0000"
 
@@ -52,6 +51,7 @@ mrb_value mrb_load_irep_file(mrb_state*,FILE*);
 #define RITE_BINARY_EOF                "END\0"
 #define RITE_SECTION_IREP_IDENTIFIER   "IREP"
 #define RITE_SECTION_LINENO_IDENTIFIER "LINE"
+#define RITE_SECTION_DEBUG_IDENTIFIER  "DBG\0"
 
 #define MRB_DUMP_DEFAULT_STR_LEN      128
 
@@ -78,15 +78,14 @@ struct rite_section_irep_header {
   RITE_SECTION_HEADER;
 
   uint8_t rite_version[4];    // Rite Instruction Specification Version
-  uint8_t nirep[2];           // Number of ireps
-  uint8_t sirep[2];           // Start index  
 };
 
 struct rite_section_lineno_header {
   RITE_SECTION_HEADER;
+};
 
-  uint8_t nirep[2];           // Number of ireps
-  uint8_t sirep[2];           // Start index  
+struct rite_section_debug_header {
+  RITE_SECTION_HEADER;
 };
 
 struct rite_binary_footer {
