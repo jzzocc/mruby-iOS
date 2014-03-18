@@ -1,8 +1,6 @@
 XCODEROOT = %x[xcode-select -print-path].strip
-#SIMSDKPATH = "#{XCODEROOT}/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator6.1.sdk/"
-#IOSSDKPATH = "#{XCODEROOT}/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS6.1.sdk/"
-SIMSDKPATH = "#{XCODEROOT}/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator7.0.sdk/"
-IOSSDKPATH = "#{XCODEROOT}/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.0.sdk/"
+SIMSDKPATH = "#{XCODEROOT}/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator7.1.sdk/"
+IOSSDKPATH = "#{XCODEROOT}/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS7.1.sdk/"
 
 task :verify_sysroot => [SIMSDKPATH, IOSSDKPATH]
 
