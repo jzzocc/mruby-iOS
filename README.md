@@ -7,7 +7,7 @@ This is a pre-built version of [ios-ruby-embedded](https://github.com/carsonmcdo
 Add the following to your [Podfile](https://github.com/CocoaPods/CocoaPods/wiki/A-Podfile):
 
 ``` ruby
-pod 'mruby-iOS', '~> 0.0.2'
+pod 'mruby-iOS', '~> 1.0.0'
 ```
 
 I highly suggest using a [pessimistic version constraint](http://docs.rubygems.org/read/chapter/16#page74) with two dots.
