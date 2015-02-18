@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = 'mruby-iOS'
-  s.version      = '1.0.0'
+  s.version      = '1.1.0'
   s.summary      = 'mruby built as an Xcode framework for embedding in iOS devices.'
   s.homepage     = 'https://github.com/jzzocc/mruby-iOS'
   s.license      = { :type => 'MIT', :file => 'LICENSE' }
