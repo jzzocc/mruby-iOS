@@ -5,6 +5,7 @@ Pod::Spec.new do |s|
   s.homepage     = 'https://github.com/jzzocc/mruby-iOS'
   s.license      = { :type => 'MIT', :file => 'LICENSE' }
   s.author       = 'mruby developers'
+  s.requires_arc = false
 
   s.source       = { :git => 'https://github.com/jzzocc/mruby-iOS.git', :tag => "#{s.version}" }
   s.platform     = :ios
