@@ -175,14 +175,14 @@ __EOF__
 end
 
 directory "MRuby.framework/Versions"
-directory "MRuby.framework/Versions/1.1.0/"
-directory "MRuby.framework/Versions/1.1.0/Headers"
-directory "MRuby.framework/Versions/1.1.0/Resources"
+directory "MRuby.framework/Versions/1.2.0/"
+directory "MRuby.framework/Versions/1.2.0/Headers"
+directory "MRuby.framework/Versions/1.2.0/Resources"
 
-task "MRuby.framework/Versions/1.1.0/" => "MRuby.framework/Versions" do
+task "MRuby.framework/Versions/1.2.0/" => "MRuby.framework/Versions" do
 
   Dir.chdir("MRuby.framework/Versions/") do
-    File.symlink("1.1.0", "Current")
+    File.symlink("1.2.0", "Current")
   end
   Dir.chdir("MRuby.framework/") do
     File.symlink("Versions/Current/Headers", "Headers")
@@ -212,19 +212,15 @@ file "bin/mruby" => [:build_mruby, "bin"] do
   FileUtils.cp "mruby/build/host/bin/mruby", "bin/mruby"
 end
 
-file "MRuby.framework/Versions/Current/MRuby" => [:build_mruby, "MRuby.framework/Versions/1.1.0/"] do
-  sh "#{IOSSDKPATH}/../../usr/bin/lipo -arch i386 mruby/build/ios-simulator/lib/libmruby.a -arch x86_64 mruby/build/ios-simulator-x86_64/lib/libmruby.a -arch arm64 mruby/build/ios-arm64/lib/libmruby.a -arch armv7 mruby/build/ios-armv7/lib/libmruby.a -arch armv7s mruby/build/ios-armv7s/lib/libmruby.a -create -output MRuby.framework/Versions/Current/MRuby"
+file "MRuby.framework/Versions/Current/MRuby" => [:build_mruby, "MRuby.framework/Versions/1.2.0/"] do
+  sh "#{XCODEROOT}/Toolchains/XcodeDefault.xctoolchain/usr/bin/lipo -arch i386 mruby/build/ios-simulator/lib/libmruby.a -arch x86_64 mruby/build/ios-simulator-x86_64/lib/libmruby.a -arch arm64 mruby/build/ios-arm64/lib/libmruby.a -arch armv7 mruby/build/ios-armv7/lib/libmruby.a -arch armv7s mruby/build/ios-armv7s/lib/libmruby.a -create -output MRuby.framework/Versions/Current/MRuby"
 end
 
-task :mruby_headers => [:build_mruby, "MRuby.framework/Versions/1.1.0/Headers"] do
+task :mruby_headers => [:build_mruby, "MRuby.framework/Versions/1.2.0/Headers"] do
   FileUtils.cp_r "mruby/include/.", "MRuby.framework/Versions/Current/Headers/"
 
-  sh "sed -i '' 's/mruby\\.h/..\\/mruby\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/*"
-  sh "sed -i '' 's/mruby\\/khash\\.h/..\\/mruby\\/khash\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/*"
-  sh "sed -i '' 's/mruby\\/irep\\.h/..\\/mruby\\/irep\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/proc.h"
-  sh "sed -i '' 's/mruby\\/irep\\.h/..\\/mruby\\/irep\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/dump.h"
-  sh "sed -i '' 's/mruby\\/object\\.h/..\\/mruby\\/object\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/value.h"
-  sh "sed -i '' 's/mruby\\/compile\\.h/..\\/mruby\\/compile\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/irep.h"
+  sh "sed -i '' 's/mruby\\/common\\.h/..\\/mruby\\/common\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/*"
+  sh "sed -i '' 's/mruby\\/object\\.h/..\\/mruby\\/object\\.h/g' MRuby.framework/Versions/Current/Headers/mruby/*"
 end
  
 task :all => [:verify_sysroot, "bin/mirb", "bin/mrbc", "bin/mruby", "MRuby.framework/Versions/Current/MRuby", :mruby_headers]
